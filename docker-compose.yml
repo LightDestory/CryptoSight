@@ -1,0 +1,99 @@
+version: '3.7'
+
+services:
+
+  # ~~~~ ZooKeeper ~~~~
+  zookeeper:
+    image: confluentinc/cp-zookeeper:6.1.1
+    container_name: zookeeper
+    hostname: zookeeper
+    ports:
+        - "2181:2181"
+    environment:
+        ZOOKEEPER_CLIENT_PORT: 2181
+        ZOOKEEPER_SERVER_ID: "1"
+        # Save Memory of your PC - Limits Max and Mix Heap Size
+        ZOOKEEPER_HEAP_OPTS: -Xms512m -Xmx512m
+    networks: 
+        - cryptolover
+
+  # ~~~~ Kafka ~~~~
+  kafkaserver:
+    image: confluentinc/cp-kafka:6.1.1
+    container_name: kafkaserver
+    hostname: kafkaserver
+    depends_on:
+      - zookeeper
+    ports:
+      - "9092:9092"
+      - "9101:9101"
+    environment:
+      KAFKA_BROKER_ID: 0
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafkaserver:9092
+      KAFKA_DEFAULT_REPLICATION_FACTOR: 1
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_CONFLUENT_BALANCER_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_CONFLUENT_METADATA_TOPIC_REPLICATION_FACTOR: 1
+      # Save Memory of your PC - Limits Max and Mix Heap Size
+      KAFKA_HEAP_OPTS: -Xms512m -Xmx512m
+    networks: 
+        - cryptolover 
+
+  # ~~~~ Kafka Topic Creation $MONEY$ ~~~~
+  kafka-create-topics:
+    image: confluentinc/cp-kafka:6.1.1
+    depends_on:
+        - kafkaserver
+    container_name: kafka-create-topics
+    hostname: kafka-create-topics
+    command: "bash -c 'echo Waiting for Kafka to be ready... && \
+                        cub kafka-ready -b kafkaserver:9092 1 200 && \
+                        kafka-topics --create --topic cryptocurrencies-raw --if-not-exists --zookeeper zookeeper:2181 --partitions 1 --replication-factor 1 && \
+                        kafka-topics --create --topic cryptocurrencies --if-not-exists --zookeeper zookeeper:2181 --partitions 1 --replication-factor 1 && \
+                        sleep infinity'"
+    environment:
+        KAFKA_BROKER_ID: ignored
+        KAFKA_ZOOKEEPER_CONNECT: ignored
+        # Save Memory of your PC - Limits Max and Mix Heap Size
+        KAFKA_HEAP_OPTS: -Xms512m -Xmx512m
+    networks:
+        - cryptolover
+
+  # ~~~~ KafkaUI ~~~~
+  webui:
+    image: provectuslabs/kafka-ui:latest
+    container_name: kafkaWebUI
+    environment:
+        KAFKA_CLUSTERS_0_NAME: my_cluster
+        KAFKA_CLUSTERS_0_ZOOKEEPER: zookeeper:2181
+        KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafkaserver:9092
+        # Save Memory of your PC - Limits Max and Mix Heap Size
+        KAFKA_CLUSTERS_0_HEAP_OPTS: -Xms512m -Xmx512m
+    ports: 
+        - 8080:8080
+    depends_on:
+        - kafkaserver
+    networks: 
+        - cryptolover
+
+  # ~~~~ Logstash ~~~~
+  logstash:
+    container_name: logstash
+    image: docker.elastic.co/logstash/logstash:7.15.0
+    volumes: 
+        - $PWD/logstash/pipeline/:/usr/share/logstash/pipeline/
+        - $PWD/logs/:/usr/share/logstash/logs/
+    depends_on: 
+        - kafkaserver
+    environment:
+        # Save Memory of your PC - Limits Max and Mix Heap Size
+        - "LS_JAVA_OPTS=-Xms1g -Xmx1g"
+    networks: 
+      - cryptolover
+
+networks:
+  cryptolover:
+    name: cryptolover
+    driver: bridge
