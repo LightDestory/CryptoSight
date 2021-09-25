@@ -13,7 +13,7 @@ services:
         ZOOKEEPER_CLIENT_PORT: 2181
         ZOOKEEPER_SERVER_ID: "1"
         # Save Memory of your PC - Limits Max and Mix Heap Size
-        ZOOKEEPER_HEAP_OPTS: -Xms512m -Xmx512m
+        ZOOKEEPER_HEAP_OPTS: -Xms1g -Xms1g
     networks: 
         - cryptolover
 
@@ -37,7 +37,7 @@ services:
       KAFKA_CONFLUENT_BALANCER_TOPIC_REPLICATION_FACTOR: 1
       KAFKA_CONFLUENT_METADATA_TOPIC_REPLICATION_FACTOR: 1
       # Save Memory of your PC - Limits Max and Mix Heap Size
-      KAFKA_HEAP_OPTS: -Xms512m -Xmx512m
+      KAFKA_HEAP_OPTS: -Xms1g -Xms1g
     networks: 
         - cryptolover 
 
@@ -57,20 +57,32 @@ services:
         KAFKA_BROKER_ID: ignored
         KAFKA_ZOOKEEPER_CONNECT: ignored
         # Save Memory of your PC - Limits Max and Mix Heap Size
-        KAFKA_HEAP_OPTS: -Xms512m -Xmx512m
+        KAFKA_HEAP_OPTS: -Xms1g -Xms1g
+    networks:
+        - cryptolover
+
+  # ~~~~ KafkaStream (Life is sadness) ~~~~
+  kafkastream:
+    build: 
+        context: kafkastream
+    image: cryptosight:kafkastream
+    container_name: kafkastream
+    depends_on: 
+        - kafkaserver
+        - kafka-create-topics
     networks:
         - cryptolover
 
   # ~~~~ KafkaUI ~~~~
-  webui:
+  kafkaWebUI:
     image: provectuslabs/kafka-ui:latest
     container_name: kafkaWebUI
     environment:
-        KAFKA_CLUSTERS_0_NAME: my_cluster
+        KAFKA_CLUSTERS_0_NAME: CryptoSnapshots
         KAFKA_CLUSTERS_0_ZOOKEEPER: zookeeper:2181
         KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafkaserver:9092
         # Save Memory of your PC - Limits Max and Mix Heap Size
-        KAFKA_CLUSTERS_0_HEAP_OPTS: -Xms512m -Xmx512m
+        KAFKA_CLUSTERS_0_HEAP_OPTS: -Xms1g -Xms1g
     ports: 
         - 8080:8080
     depends_on:
@@ -78,13 +90,12 @@ services:
     networks: 
         - cryptolover
 
-  # ~~~~ Logstash ~~~~
-  logstash:
-    container_name: logstash
-    image: docker.elastic.co/logstash/logstash:7.15.0
+  # ~~~~ Logstash HTTP Poller ~~~~
+  logstash_http_poller:
+    container_name: logstash_http_poller
+    image: opensearchproject/logstash-oss-with-opensearch-output-plugin
     volumes: 
-        - $PWD/logstash/pipeline/:/usr/share/logstash/pipeline/
-        - $PWD/logs/:/usr/share/logstash/logs/
+        - $PWD/logstash/http_poller/:/usr/share/logstash/pipeline/
     depends_on: 
         - kafkaserver
     environment:
@@ -92,6 +103,65 @@ services:
         - "LS_JAVA_OPTS=-Xms1g -Xmx1g"
     networks: 
       - cryptolover
+
+  # ~~~~ OpenSearch (ElasticSearch just made FOSS) ~~~~
+  opensearch:
+    container_name: opensearch
+    hostname: opensearch
+    image: opensearchproject/opensearch:latest
+    environment:
+      - cluster.routing.allocation.disk.threshold_enabled=false
+      - discovery.type=single-node
+      # Memory Settings
+      - bootstrap.memory_lock=true # along with the memlock settings below, disables swapping
+      - "OPENSEARCH_JAVA_OPTS=-Xms1g -Xmx1g" # minimum and maximum Java heap size, recommend setting both to 50% of system RAM
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+      nofile:
+        soft: 65536 # maximum number of open files for the OpenSearch user, set to at least 65536 on modern systems
+        hard: 65536
+    volumes:
+      - opensearch-data:/usr/share/opensearch/data
+    ports:
+      - 9200:9200
+      - 9600:9600 # required for Performance Analyzer
+    networks:
+      - cryptolover
+
+  # ~~~~ OpenSearch-Dashboards (Kibana just made FOSS) ~~~~
+  opensearch-dashboards:
+    image: opensearchproject/opensearch-dashboards:latest
+    container_name: opensearch-dashboards
+    depends_on: 
+      - opensearch
+    ports:
+      - 5601:5601
+    expose:
+      - "5601"
+    environment:
+      OPENSEARCH_HOSTS: '["https://opensearch:9200"]'
+    networks:
+      - cryptolover
+
+    # ~~~~ Logstash OpenSearch Consumer ~~~~
+  logstash_opensearch:
+    container_name: logstash_opensearch
+    image: opensearchproject/logstash-oss-with-opensearch-output-plugin
+    volumes: 
+        - $PWD/logstash/opensearch_consumer/:/usr/share/logstash/pipeline/
+    depends_on: 
+        - kafkaserver
+        - logstash_http_poller
+    environment:
+        # Save Memory of your PC - Limits Max and Mix Heap Size
+        - "LS_JAVA_OPTS=-Xms1g -Xmx1g"
+    networks: 
+      - cryptolover
+
+volumes:
+  opensearch-data:
 
 networks:
   cryptolover:
