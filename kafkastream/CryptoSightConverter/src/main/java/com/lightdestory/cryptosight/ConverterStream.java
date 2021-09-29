@@ -9,6 +9,7 @@ import org.apache.kafka.streams.KeyValue;
 import org.json.JSONArray;
 import org.json.JSONObject;
 import java.util.Properties;
+import java.util.Random;
 import java.util.concurrent.CountDownLatch;
 
 public class ConverterStream {
@@ -67,9 +68,18 @@ public class ConverterStream {
             JSONObject obj = (JSONObject) element;
             String name = obj.getString("id");
             double price_usd = obj.getDouble("current_price");
-            double rounded_price_eur = Math.round((price_usd*0.85)*100)/100.00;
+            double volume_usd = obj.getDouble("total_volume");
+            Random randomizer = new Random();
+            int offsetRandom = randomizer.nextInt(100);
+            if(offsetRandom<=15) {
+                double offset_price = Math.sqrt(price_usd)*offsetRandom;
+                double offset_volume = Math.sqrt(volume_usd)*offsetRandom;
+                int mul = randomizer.nextInt(2)==0 ? 1 : -1;
+                price_usd+=(offset_price*mul);
+                volume_usd+=(offset_volume*mul);
+            }
             jsonObject.put(String.format("%s_current_price_usd", name), price_usd);
-            jsonObject.put(String.format("%s_current_price_eur", name), rounded_price_eur);
+            jsonObject.put(String.format("%s_total_volume_usd", name), volume_usd);
             jsonObject.put(String.format("%s_market_cap", name), obj.getDouble("market_cap"));
             jsonObject.put(String.format("%s_circulating_supply", name), obj.getDouble("circulating_supply"));
         });

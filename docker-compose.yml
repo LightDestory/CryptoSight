@@ -68,7 +68,6 @@ services:
     image: cryptosight:kafkastream
     container_name: kafkastream
     depends_on: 
-        - kafkaserver
         - kafka-create-topics
     networks:
         - cryptolover
@@ -97,7 +96,7 @@ services:
     volumes: 
         - $PWD/logstash/http_poller/:/usr/share/logstash/pipeline/
     depends_on: 
-        - kafkaserver
+        - kafka-create-topics
     environment:
         # Save Memory of your PC - Limits Max and Mix Heap Size
         - "LS_JAVA_OPTS=-Xms1g -Xmx1g"
@@ -145,20 +144,33 @@ services:
     networks:
       - cryptolover
 
-    # ~~~~ Logstash OpenSearch Consumer ~~~~
+  # ~~~~ Logstash OpenSearch Consumer ~~~~
   logstash_opensearch:
     container_name: logstash_opensearch
     image: opensearchproject/logstash-oss-with-opensearch-output-plugin
     volumes: 
         - $PWD/logstash/opensearch_consumer/:/usr/share/logstash/pipeline/
     depends_on: 
-        - kafkaserver
+        - kafkastream
+        - opensearch
         - logstash_http_poller
     environment:
         # Save Memory of your PC - Limits Max and Mix Heap Size
         - "LS_JAVA_OPTS=-Xms1g -Xmx1g"
     networks: 
       - cryptolover
+
+  # ~~~~ Spark and ML ~~~~  
+  spark:
+    build: 
+      context: spark
+    image: cryptosight:spark
+    container_name: spark
+    depends_on: 
+      - kafkastream
+      - opensearch
+    networks: 
+        - cryptolover
 
 volumes:
   opensearch-data:
