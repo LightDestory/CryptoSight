@@ -8,9 +8,6 @@ from elasticsearch import Elasticsearch
 import pandas as pd
 
 
-coins = ['bitcoin', 'binancecoin', 'dogecoin', 'ripple', 'ethereum', 'tether', "cardano"]
-model_dictionary = {}
-
 def get_spark_session():
     spark_conf = SparkConf() \
         .set('es.nodes', 'https://opensearch') \
@@ -29,35 +26,12 @@ def get_spark_session():
 
 def get_cryptocurrency_data_schema():
     return StructType() \
-        .add('bitcoin_circulating_supply', DoubleType(), True) \
-        .add('bitcoin_current_price_usd', DoubleType(), True) \
-        .add('tether_circulating_supply', DoubleType(), True) \
-        .add('bitcoin_current_price_eur', DoubleType(), True) \
-        .add('binancecoin_circulating_supply', DoubleType(), True) \
-        .add('ethereum_market_cap', DoubleType(), True) \
-        .add('tether_market_cap', DoubleType(), True) \
-        .add('binancecoin_current_price_usd', DoubleType(), True) \
-        .add('ripple_current_price_eur', DoubleType(), True) \
-        .add('ethereum_current_price_eur', DoubleType(), True) \
-        .add('binancecoin_current_price_eur', DoubleType(), True) \
-        .add('cardano_market_cap', DoubleType(), True) \
-        .add('ethereum_circulating_supply', DoubleType(), True) \
-        .add('dogecoin_current_price_eur', DoubleType(), True) \
-        .add('dogecoin_current_price_usd', DoubleType(), True) \
-        .add('ripple_current_price_usd', DoubleType(), True) \
-        .add('ripple_circulating_supply', DoubleType(), True) \
-        .add('binancecoin_market_cap', DoubleType(), True) \
-        .add('ripple_market_cap', DoubleType(), True) \
-        .add('ethereum_current_price_usd', DoubleType(), True) \
-        .add('tether_current_price_usd', DoubleType(), True) \
-        .add('cardano_current_price_eur', DoubleType(), True) \
-        .add('dogecoin_market_cap', DoubleType(), True) \
         .add('@timestamp', StringType(), True) \
-        .add('tether_current_price_eur', DoubleType(), True) \
-        .add('cardano_current_price_usd', DoubleType(), True) \
-        .add('cardano_circulating_supply', DoubleType(), True) \
-        .add('dogecoin_circulating_supply', DoubleType(), True) \
-        .add('bitcoin_market_cap', DoubleType(), True)
+        .add('coin', StringType(), True) \
+        .add('circulating_supply', DoubleType(), True) \
+        .add('total_volume', DoubleType(), True) \
+        .add('market_cap', DoubleType(), True) \
+        .add('current_price', DoubleType(), True)
 
 
 def get_cryptocurrency_kafka_data_stream(schema: StructType):
@@ -77,77 +51,48 @@ def get_cryptocurrency_kafka_data_stream(schema: StructType):
             col('time'),
             col('@timestamp'),
             col('milliseconds'),
-            col('bitcoin_current_price_usd'),
-            col('binancecoin_current_price_usd'),
-            col('dogecoin_current_price_usd'),
-            col('ripple_current_price_usd'),
-            col('ethereum_current_price_usd'),
-            col('tether_current_price_usd'),
-            col('cardano_current_price_usd')
+            col('coin'),
+            col('current_price')
         )
 
 
 def get_resulting_df_schema():
     return StructType() \
         .add("@timestamp", StringType()) \
-        .add('bitcoin_estimated_price_usd', DoubleType()) \
-        .add('binancecoin_estimated_price_usd', DoubleType()) \
-        .add('dogecoin_estimated_price_usd', DoubleType()) \
-        .add('ripple_estimated_price_usd', DoubleType()) \
-        .add('ethereum_estimated_price_usd', DoubleType()) \
-        .add('tether_estimated_price_usd', DoubleType()) \
-        .add('cardano_estimated_price_usd', DoubleType())
+        .add("coin", StringType()) \
+        .add('estimated_price', DoubleType())
 
 
 def get_output_df():
     return pd.DataFrame(columns=[
         '@timestamp',
-        'bitcoin_estimated_price_usd',
-        'binancecoin_estimated_price_usd',
-        'dogecoin_estimated_price_usd',
-        'ripple_estimated_price_usd',
-        'ethereum_estimated_price_usd',
-        'tether_estimated_price_usd',
-        'cardano_estimated_price_usd'
+        'coin',
+        'estimated_price'
     ])
 
 
-def generate_linear_regression_models(df: pd.DataFrame):
+def generate_linear_regression_model(df: pd.DataFrame):
     x = df['milliseconds'].to_numpy().reshape(-1, 1)
-    for coin in coins:
-        y = df[f"{coin}_current_price_usd"].to_numpy()
-        lr = LinearRegression()
-        lr.fit(x, y)
-        model_dictionary[coin] = lr
+    y = df["current_price"].to_numpy()
+    lr = LinearRegression()
+    lr.fit(x, y)
+    return lr
 
 
-def make_series(timestamp, price_dictionary) -> pd.Series:
+def make_series(df, timestamp, estimated_price) -> pd.Series:
     return pd.Series([
         str(timestamp),
-        float(price_dictionary[coins[0]]),
-        float(price_dictionary[coins[1]]),
-        float(price_dictionary[coins[2]]),
-        float(price_dictionary[coins[3]]),
-        float(price_dictionary[coins[4]]),
-        float(price_dictionary[coins[5]]),
-        float(price_dictionary[coins[6]])
+        df.iloc[0]['coin'],
+        float(estimated_price)
     ], index=[
         '@timestamp',
-        'bitcoin_estimated_price_usd',
-        'binancecoin_estimated_price_usd',
-        'dogecoin_estimated_price_usd',
-        'ripple_estimated_price_usd',
-        'ethereum_estimated_price_usd',
-        'tether_estimated_price_usd',
-        'cardano_estimated_price_usd'
+        'coin',
+        'estimated_price'
     ])
 
 
-def predict_value(milliseconds):
-    estimation = {}
-    for coin in coins:
-        estimation[coin] = model_dictionary[coin].predict([[milliseconds]])[0]
-    return estimation
+def predict_value(model, milliseconds):
+    return model.predict([[milliseconds]])[0]
 
 
 def predict(df: pd.DataFrame) -> pd.DataFrame:
@@ -155,12 +100,12 @@ def predict(df: pd.DataFrame) -> pd.DataFrame:
     newdf = get_output_df()
     if (nrows(df) < 1):
         return newdf
-    generate_linear_regression_models(df)
+    model = generate_linear_regression_model(df)
     lastCryptoSnapshot = df['milliseconds'].values.max()
     next_minutes = [(lastCryptoSnapshot + (60000 * i)) for i in range(5)]
-    next_prices = [predict_value(m) for m in next_minutes]
-    for millis, price_dictionary in zip(next_minutes, next_prices):
-        newdf = newdf.append(make_series(millis, price_dictionary), ignore_index=True)
+    next_prices = [predict_value(model, m) for m in next_minutes]
+    for millis, price in zip(next_minutes, next_prices):
+        newdf = newdf.append(make_series(df, millis, price), ignore_index=True)
     return newdf
 
 
@@ -174,13 +119,15 @@ if __name__ == "__main__":
         "mappings": {
             "properties": {
                 "@timestamp": {"type": "date", "format": "epoch_second"},
-                "bitcoin_estimated_price_usd": {"type": "double"},
-                "binancecoin_estimated_price_usd": {"type": "double"},
-                "dogecoin_estimated_price_usd": {"type": "double"},
-                "ripple_estimated_price_usd": {"type": "double"},
-                "ethereum_estimated_price_usd": {"type": "double"},
-                "tether_estimated_price_usd": {"type": "double"},
-                "cardano_estimated_price_usd": {"type": "double"}
+                "coin": {
+                    "type": "text", 
+                    "fields": {
+                        "keyword": { 
+                            "type": "keyword"
+                        }
+                    }
+                },
+                "estimated_price": {"type": "double"}
             }
         }
     }
@@ -203,7 +150,7 @@ if __name__ == "__main__":
 
     win = window(dataStream.time, "1 minutes")
     dataStream \
-        .groupBy(win) \
+        .groupBy('coin', win) \
         .applyInPandas(predict, get_resulting_df_schema()) \
         .writeStream \
         .option('checkpointLocation', '/tmp/checkpoint') \

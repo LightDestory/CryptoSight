@@ -6,7 +6,6 @@ import org.apache.kafka.streams.StreamsBuilder;
 import org.apache.kafka.streams.StreamsConfig;
 import org.apache.kafka.streams.Topology;
 import org.apache.kafka.streams.KeyValue;
-import org.json.JSONArray;
 import org.json.JSONObject;
 import java.util.Properties;
 import java.util.Random;
@@ -61,28 +60,25 @@ public class ConverterStream {
     }
 
     private static String generateCleanDataJSON(String value) {
-        JSONObject jsonObject = new JSONObject(value);
-        JSONArray raw_data = new JSONArray(jsonObject.getString("message"));
-        jsonObject.remove("message");
-        raw_data.forEach(element -> {
-            JSONObject obj = (JSONObject) element;
-            String name = obj.getString("id");
-            double price_usd = obj.getDouble("current_price");
-            double volume_usd = obj.getDouble("total_volume");
-            Random randomizer = new Random();
-            int offsetRandom = randomizer.nextInt(100);
-            if(offsetRandom<=15) {
-                double offset_price = Math.sqrt(price_usd)*offsetRandom;
-                double offset_volume = Math.sqrt(volume_usd)*offsetRandom;
-                int mul = randomizer.nextInt(2)==0 ? 1 : -1;
-                price_usd+=(offset_price*mul);
-                volume_usd+=(offset_volume*mul);
-            }
-            jsonObject.put(String.format("%s_current_price_usd", name), price_usd);
-            jsonObject.put(String.format("%s_total_volume_usd", name), volume_usd);
-            jsonObject.put(String.format("%s_market_cap", name), obj.getDouble("market_cap"));
-            jsonObject.put(String.format("%s_circulating_supply", name), obj.getDouble("circulating_supply"));
-        });
-        return jsonObject.toString();
+        JSONObject rawElement = new JSONObject(value);
+        double current_price = rawElement.getDouble("current_price");
+        double volume_usd = rawElement.getDouble("total_volume");
+        Random randomizer = new Random();
+        int offsetRandom = randomizer.nextInt(100);
+        if(offsetRandom<=15) {
+            double offset_price = Math.sqrt(current_price)*offsetRandom;
+            double offset_volume = Math.sqrt(volume_usd)*offsetRandom;
+            int mul = randomizer.nextInt(2)==0 ? 2 : -2;
+            current_price+=(offset_price*mul);
+            volume_usd+=(offset_volume*mul);
+        }
+        JSONObject cleanElement = new JSONObject();
+        cleanElement.put("@timestamp", rawElement.getString("@timestamp"));
+        cleanElement.put("coin", rawElement.getString("name"));
+        cleanElement.put("market_cap", rawElement.getDouble("market_cap"));
+        cleanElement.put("circulating_supply", rawElement.getDouble("circulating_supply"));
+        cleanElement.put("current_price", current_price);
+        cleanElement.put("total_volume", volume_usd);
+        return cleanElement.toString();
     }
 }
