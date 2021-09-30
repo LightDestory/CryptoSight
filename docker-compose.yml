@@ -97,7 +97,7 @@ services:
   # ~~~~ Logstash HTTP Poller ~~~~
   logstash_http_poller:
     container_name: logstash_http_poller
-    image: opensearchproject/logstash-oss-with-opensearch-output-plugin
+    image: logstash:7.11.2
     volumes: 
         - $PWD/logstash/http_poller/:/usr/share/logstash/pipeline/
     depends_on: 
@@ -153,7 +153,7 @@ services:
   # ~~~~ Logstash OpenSearch Consumer ~~~~
   logstash_opensearch:
     container_name: logstash_opensearch
-    image: opensearchproject/logstash-oss-with-opensearch-output-plugin
+    image: logstash:7.11.2
     volumes: 
         - $PWD/logstash/opensearch_consumer/:/usr/share/logstash/pipeline/
     depends_on: 
@@ -167,16 +167,16 @@ services:
       - cryptolover
 
   # ~~~~ Spark and ML ~~~~  
-  #spark:
-  #  build: 
-  #    context: spark
-  #  image: cryptosight:spark
-  #  container_name: spark
-  #  depends_on: 
-  #    - kafkastream
-  #    - opensearch
-  #  networks: 
-  #      - cryptolover
+  spark:
+    build: 
+      context: spark
+    image: cryptosight:spark
+    container_name: spark
+    depends_on: 
+      - kafkastream
+      - opensearch
+    networks: 
+        - cryptolover
 
 volumes:
   opensearch-data:
