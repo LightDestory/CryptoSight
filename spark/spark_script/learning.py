@@ -2,7 +2,7 @@ from pyspark.sql import SparkSession
 from pyspark.conf import SparkConf
 from pyspark import SparkContext
 from pyspark.sql.functions import from_json, col, to_timestamp, unix_timestamp, window
-from pyspark.sql.types import StructType, TimestampType, DoubleType
+from pyspark.sql.types import StructType, StringType, DoubleType
 from sklearn.linear_model import LinearRegression
 from elasticsearch import Elasticsearch
 import pandas as pd
@@ -52,7 +52,7 @@ def get_cryptocurrency_data_schema():
         .add('tether_current_price_usd', DoubleType(), True) \
         .add('cardano_current_price_eur', DoubleType(), True) \
         .add('dogecoin_market_cap', DoubleType(), True) \
-        .add('@timestamp', TimestampType(), True) \
+        .add('@timestamp', StringType(), True) \
         .add('tether_current_price_eur', DoubleType(), True) \
         .add('cardano_current_price_usd', DoubleType(), True) \
         .add('cardano_circulating_supply', DoubleType(), True) \
@@ -89,7 +89,7 @@ def get_cryptocurrency_kafka_data_stream(schema: StructType):
 
 def get_resulting_df_schema():
     return StructType() \
-        .add("@timestamp", TimestampType()) \
+        .add("@timestamp", StringType()) \
         .add('bitcoin_estimated_price_usd', DoubleType()) \
         .add('binancecoin_estimated_price_usd', DoubleType()) \
         .add('dogecoin_estimated_price_usd', DoubleType()) \
@@ -144,13 +144,9 @@ def make_series(timestamp, price_dictionary) -> pd.Series:
 
 
 def predict_value(milliseconds):
-    """rssi_range = lambda s: max(min(0, s), -120)
-    s = model.predict([[milliseconds]])[0]
-    return rssi_range(s)
-    """
     estimation = {}
     for coin in coins:
-        estimation[coin] = 999999
+        estimation[coin] = model_dictionary[coin].predict([[milliseconds]])[0]
     return estimation
 
 
