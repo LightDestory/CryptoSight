@@ -1,8 +1,10 @@
 FROM jupyter/pyspark-notebook:spark-3.1.1
 
-RUN pip3 install pyspark kafka-utils numpy elasticsearch pandas scikit-learn
+RUN pip3 install pyspark kafka-utils numpy "elasticsearch==7.13.4" pandas scikit-learn
 
 WORKDIR /app
+
+RUN mkdir -p "/tmp/checkpoint"
 
 COPY ./spark_script/learning.py .
 

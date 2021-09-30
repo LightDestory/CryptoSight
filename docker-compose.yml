@@ -14,6 +14,9 @@ services:
         ZOOKEEPER_SERVER_ID: "1"
         # Save Memory of your PC - Limits Max and Mix Heap Size
         ZOOKEEPER_HEAP_OPTS: -Xms1g -Xms1g
+    volumes:
+      - zookeeper-data:/var/lib/zookeeper/data
+      - zookeeper-logs:/var/lib/zookeeper/log
     networks: 
         - cryptolover
 
@@ -38,6 +41,8 @@ services:
       KAFKA_CONFLUENT_METADATA_TOPIC_REPLICATION_FACTOR: 1
       # Save Memory of your PC - Limits Max and Mix Heap Size
       KAFKA_HEAP_OPTS: -Xms1g -Xms1g
+    volumes:
+      - kafka-data:/var/lib/kafka/data
     networks: 
         - cryptolover 
 
@@ -174,6 +179,9 @@ services:
 
 volumes:
   opensearch-data:
+  kafka-data:
+  zookeeper-data:
+  zookeeper-logs:
 
 networks:
   cryptolover:
