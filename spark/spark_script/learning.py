@@ -143,7 +143,7 @@ def make_series(timestamp, price_dictionary) -> pd.Series:
     ])
 
 
-def predict_value(model, milliseconds):
+def predict_value(milliseconds):
     """rssi_range = lambda s: max(min(0, s), -120)
     s = model.predict([[milliseconds]])[0]
     return rssi_range(s)
